@@ -1,82 +1,80 @@
+
 /**
- * @file PoweredDevice.h
- * @brief Объявление класса PoweredDevice.
+ * @file PoweredDevice.cpp
+ * @brief Реализация класса PoweredDevice.
  */
-#pragma once
-#include "SmartDevice.h"
-#include <chrono>
+#include "PoweredDevice.h"
+#include <cmath>
+#include <stdexcept>
 
 using namespace std;
 using namespace std::chrono;
 
-/**
- * @brief Абстрактное устройство с питанием: второй уровень иерархии.
- * @details Реализует включение, выключение и общую статистику расхода энергии.
- * Остаётся абстрактным, поскольку getStatus() не реализован.
- */
-class PoweredDevice : public SmartDevice {
-protected:
-    double powerConsumption; ///< Номинальная мощность в ваттах.
+double PoweredDevice::totalEnergyConsumed = 0.0;
 
-    /**
-     * @brief Создаёт устройство с заданной номинальной мощностью.
-     * @param name Имя устройства.
-     * @param powerConsumption Положительная конечная мощность в ваттах.
-     * @throws invalid_argument Если мощность неположительная или не является конечной.
-     */
-    PoweredDevice(const string& name, double powerConsumption);
+PoweredDevice::PoweredDevice(const string& name, double powerConsumption)
+    : SmartDevice(name),
+      powerConsumption(powerConsumption),
+      started(steady_clock::now()),
+      sessionPower(0.0) {
+    if (!isfinite(powerConsumption) || powerConsumption <= 0.0) {
+        throw invalid_argument("Мощность должна быть положительным конечным числом");
+    }
+}
 
-    /**
-     * @brief Создаёт независимую копию состояния и параметров.
-     * @param other Копируемый объект.
-     * @details Копирует включён/выключен, но начинает собственный отсчёт времени, не повторяя
-     * прошлый расход.
-     */
-    PoweredDevice(const PoweredDevice& other);
+PoweredDevice::PoweredDevice(const PoweredDevice& other)
+    : SmartDevice(other),
+      powerConsumption(other.powerConsumption),
+      started(steady_clock::now()),
+      sessionPower(other.sessionPower) {
+}
 
-    /**
-     * @brief Присваивает состояние и параметры другого объекта.
-     * @param other Объект-источник.
-     * @return Ссылка на текущий объект.
-     * @details Самоприсваивание сохраняет объект без изменений.
-     * Перед заменой параметров учитывает старый расход приёмника. Новый отсчёт начинается сейчас.
-     */
-    PoweredDevice& operator=(const PoweredDevice& other);
+PoweredDevice& PoweredDevice::operator=(const PoweredDevice& other) {
+    if (this != &other) {
+        if (on) {
+            turnOff();
+        }
 
-private:
-    steady_clock::time_point started; ///< Начало текущего интервала работы.
-    double sessionPower;                      ///< Мощность в ваттах, зафиксированная при включении.
-    static double totalEnergyConsumed;        ///< Общий учтённый расход в кВт·ч для всех устройств.
+        SmartDevice::operator=(other);
+        powerConsumption = other.powerConsumption;
+        sessionPower = other.sessionPower;
+        started = steady_clock::now();
+    }
 
-public:
-    /**
-     * @brief Учитывает оставшийся расход при уничтожении устройства.
-     */
-    ~PoweredDevice() override;
+    return *this;
+}
 
-    /**
-     * @brief Включает устройство и запоминает время и текущую мощность.
-     * @details Повторное включение не сбрасывает начатый интервал.
-     */
-    void turnOn() override;
+PoweredDevice::~PoweredDevice() {
+    if (on) {
+        turnOff();
+    }
+}
 
-    /**
-     * @brief Выключает устройство и добавляет расход в общий счётчик.
-     * @details Энергия в кВт·ч = мощность в Вт * секунды / 3600000.
-     * Повторное выключение не прибавляет энергию снова.
-     */
-    void turnOff() override;
+void PoweredDevice::turnOn() {
+    if (!on) {
+        on = true;
+        started = steady_clock::now();
+        sessionPower = getPowerUsage();
+    }
+}
 
-    /**
-     * @brief Возвращает мощность по умолчанию.
-     * @return Номинальная мощность в ваттах при включении, иначе 0.
-     */
-    virtual double getPowerUsage() const;
+void PoweredDevice::turnOff() {
+    if (on) {
+        const auto now = steady_clock::now();
+        const double seconds =
+            duration<double>(now - started).count();
 
-    /**
-     * @brief Возвращает общий учтённый расход всех устройств.
-     * @return Энергия завершённых интервалов работы в кВт·ч.
-     * @details Значение общее для всех наследников в одном процессе. При запуске равно нулю.
-     */
-    static double getTotalEnergyConsumed();
-};
+        totalEnergyConsumed += sessionPower * seconds / 3600000.0;
+
+        on = false;
+        sessionPower = 0.0;
+    }
+}
+
+double PoweredDevice::getPowerUsage() const {
+    return on ? powerConsumption : 0.0;
+}
+
+double PoweredDevice::getTotalEnergyConsumed() {
+    return totalEnergyConsumed;
+}
