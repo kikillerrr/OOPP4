@@ -13,7 +13,6 @@ abstract class SmartDevice {
     +{abstract} getStatus(): string
     +isOn(): bool
 }
-
 abstract class PoweredDevice {
     #powerConsumption: double
     -started: chrono::steady_clock::time_point
@@ -28,7 +27,6 @@ abstract class PoweredDevice {
     +getPowerUsage(): double
     +{static} getTotalEnergyConsumed(): double
 }
-
 class LightBulb {
     -brightness: int
     -color: string
@@ -39,7 +37,6 @@ class LightBulb {
     +getPowerUsage(): double
     +getStatus(): string
 }
-
 class Thermostat {
     -temperature: double
     -mode: string
@@ -64,6 +61,7 @@ class SmartOutlet {
     +setVoltage(value: double): void
     +getStatus(): string
 }
+
 
 SmartDevice <|-- PoweredDevice
 PoweredDevice <|-- LightBulb
